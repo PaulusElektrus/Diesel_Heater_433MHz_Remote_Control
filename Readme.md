@@ -12,7 +12,7 @@ We sniff and use the protocoll of the original remote control of the heater.
 - [X] Sniff Remote Control Codes
 - [X] DHT22 integration & test
 - [ ] Programming
-- [ ] Design Circuit Board 
+- [X] Design Circuit Board 
 - [ ] Build Circuit Board
 
 ## Basic 433Mhz Send & Receive Test
@@ -85,4 +85,6 @@ The DHT22 can be tested with the [Unified Sensor Example](https://github.com/ada
 
 You can install the [DHT sensor library](https://docs.arduino.cc/libraries/dht-sensor-library/) in the library manager. Then the DHT_Unified_Sensor example can be found under "Examples" in the IDE. Just load in on the Microcontroller and open the serial monitor with baudrate 9600. You should see actual temperature and humidity in the serial monitor.
 
+## Schematic
 
+![Schematic](./Schematic.png)

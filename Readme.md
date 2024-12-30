@@ -13,7 +13,8 @@ We sniff and use the protocoll of the original remote control of the heater.
 - [X] DHT22 integration & test
 - [ ] Programming
 - [X] Design Circuit Board 
-- [ ] Build Circuit Board
+- [X] Build Circuit Board
+- [ ] Final Tests
 
 ## Basic 433Mhz Send & Receive Test
 

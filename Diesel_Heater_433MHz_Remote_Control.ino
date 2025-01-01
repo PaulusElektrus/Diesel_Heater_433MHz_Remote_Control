@@ -15,30 +15,34 @@
 #define SWITCH_AT_HOME      9
 
 /* User Settings */
-#define FROST_ON_TEMP           0   /* °C */
-#define FROST_OFF_TEMP          10  /* °C */
-#define FROST_MIN_TIME_DELAY    30  /* Minutes */
-#define FROST_SWITCH_ON_TIME    5   /* Minutes */
-#define FROST_SWITCH_OFF_TIME   5   /* Minutes */
-#define FROST_MAX_ON_TIME       30  /* Minutes */
-#define FROST_RETRY_COUNT       0   /* times */
+#define FROST_ON_TEMP               0   /* °C */
+#define FROST_OFF_TEMP              10  /* °C */
+#define FROST_MIN_TIME_DELAY        30  /* Minutes */
+#define FROST_SWITCH_ON_TIME        5   /* Minutes */
+#define FROST_SWITCH_ON_DELTA_T     5   /* °C */
+#define FROST_SWITCH_OFF_TIME       5   /* Minutes */
+#define FROST_SWITCH_OFF_DELTA_T    5   /* °C */
+#define FROST_MAX_ON_TIME           30  /* Minutes */
+#define FROST_RETRY_COUNT           0   /* times */
 
-#define HOME_ON_TEMP            15  /* °C */
-#define HOME_OFF_TEMP           25  /* °C */
-#define HOME_MIN_TIME_DELAY     30  /* Minutes */
-#define HOME_SWITCH_ON_TIME     5   /* Minutes */
-#define HOME_SWITCH_OFF_TIME    5   /* Minutes */
-#define HOME_MAX_ON_TIME        30  /* Minutes */
-#define HOME_RETRY_COUNT        0   /* times */
+#define HOME_ON_TEMP                15  /* °C */
+#define HOME_OFF_TEMP               25  /* °C */
+#define HOME_MIN_TIME_DELAY         30  /* Minutes */
+#define HOME_SWITCH_ON_TIME         5   /* Minutes */
+#define HOME_SWITCH_ON_DELTA_T      5   /* °C */
+#define HOME_SWITCH_OFF_TIME        5   /* Minutes */
+#define HOME_SWITCH_OFF_DELTA_T     5   /* °C */
+#define HOME_MAX_ON_TIME            30  /* Minutes */
+#define HOME_RETRY_COUNT            0   /* times */
 
-#define MIN_TO_MSEC             60000
-#define REPORT_TIME             5000
+#define MIN_TO_MSEC                 60000
+#define REPORT_TIME                 5000
 
 /* Remote Codes */
 #define REMOTE_ON           "10100110100011010001000110110000"
 #define REMOTE_OFF          "10100110100011010000010100001000"
 #define REMOTE_PLUS         "10100110100011010000100011110000"
-#define REMOTE_Minus        "10100110100011010000001010001000"
+#define REMOTE_MINUS        "10100110100011010000001010001000"
 #define REMOTE_PULSLENGTH   257
 
 /* States */
@@ -52,10 +56,12 @@ enum operatingModes
 enum heaterStates
 {
     OFF, 
-    SWITCH_ON_PROCESS,
     ON,
-    SWITCH_OFF_PROCESS,
-    ERROR_STATE
+    PAUSE,
+    NO_OPERATION,
+    ERROR_STATE,
+    SWITCH_OFF_PROCESS = 10,
+    SWITCH_ON_PROCESS,
 };
 
 struct settings
@@ -64,7 +70,9 @@ struct settings
     int             offTemp;
     unsigned long   minTimeDelay;
     unsigned long   switchOnTime;
+    int             switchOnDeltaT;
     unsigned long   switchOffTime;
+    int             switchOffDeltaT;
     unsigned long   maxOnTime;
     unsigned int    retryCount;
 };
@@ -73,10 +81,11 @@ struct settings
 /* Global Variables */
 operatingModes  mode            = OFF_MODE;
 heaterStates    state           = OFF;
-bool            heaterOn        = 0;   
+bool            heaterOn        = LOW;   
 float           temp            = NAN;
 unsigned long   time            = millis();
 String          serialInput     = "";
+String          errorString     = "No Errors";
 settings        frostGuardSettings;
 settings        atHomeSettings;
 settings        actualSettings;
@@ -97,8 +106,6 @@ void setup()
     pinMode(SWITCH_FROST_GUARD, INPUT_PULLUP);
     pinMode(SWITCH_AT_HOME, INPUT_PULLUP);
 
-    checkOperatingMode();
-
     dht.begin();
 
     transmitter.enableTransmit(TRANSMITTER_PIN);
@@ -108,7 +115,9 @@ void setup()
     frostGuardSettings.offTemp          = FROST_OFF_TEMP;
     frostGuardSettings.minTimeDelay     = FROST_MIN_TIME_DELAY * MIN_TO_MSEC;
     frostGuardSettings.switchOnTime     = FROST_SWITCH_ON_TIME * MIN_TO_MSEC;
+    frostGuardSettings.switchOnDeltaT   = FROST_SWITCH_ON_DELTA_T;
     frostGuardSettings.switchOffTime    = FROST_SWITCH_OFF_TIME * MIN_TO_MSEC;
+    frostGuardSettings.switchOffDeltaT  = FROST_SWITCH_OFF_DELTA_T;
     frostGuardSettings.maxOnTime        = FROST_MAX_ON_TIME * MIN_TO_MSEC;
     frostGuardSettings.retryCount       = FROST_RETRY_COUNT;
 
@@ -116,11 +125,13 @@ void setup()
     atHomeSettings.offTemp              = HOME_OFF_TEMP;
     atHomeSettings.minTimeDelay         = HOME_MIN_TIME_DELAY * MIN_TO_MSEC;
     atHomeSettings.switchOnTime         = HOME_SWITCH_ON_TIME * MIN_TO_MSEC;
+    atHomeSettings.switchOnDeltaT       = HOME_SWITCH_ON_DELTA_T;
     atHomeSettings.switchOffTime        = HOME_SWITCH_OFF_TIME * MIN_TO_MSEC;
+    atHomeSettings.switchOffDeltaT      = HOME_SWITCH_OFF_DELTA_T;
     atHomeSettings.maxOnTime            = HOME_MAX_ON_TIME * MIN_TO_MSEC;
     atHomeSettings.retryCount           = HOME_RETRY_COUNT;
 
-    actualSettings                      = frostGuardSettings;
+    checkOperatingMode();
 
     Serial.println("### Device Report ###\n");
 }
@@ -132,6 +143,7 @@ void loop()
     checkTemperature();
     setHeater();
     serialReport();
+    delay(1000);
 }
 
 void checkAdminMode()
@@ -194,33 +206,38 @@ void adminMode(String userInput)
 
         }
     }
-    
-
 }
 
 void checkOperatingMode()
 {
-    if (!digitalRead(SWITCH_FROST_GUARD))
+    /* No operating mode changes during Switch On or Off state */
+    if (state < 10)
     {
-        mode = FROST_GUARD_MODE;
-        actualSettings = frostGuardSettings;
+        if (!digitalRead(SWITCH_FROST_GUARD))
+        {
+            mode = FROST_GUARD_MODE;
+            actualSettings = frostGuardSettings;
+        }
+        else if (!digitalRead(SWITCH_AT_HOME))
+        {
+            mode = AT_HOME_MODE;
+            actualSettings = atHomeSettings;
+        }
     }
-    else if (!digitalRead(SWITCH_AT_HOME))
-    {
-        mode = AT_HOME_MODE;
-        actualSettings = atHomeSettings;
-    }
-    else
+    if (digitalRead(SWITCH_FROST_GUARD) && digitalRead(SWITCH_AT_HOME))
     {
         mode = OFF_MODE;
-        switchOff();
-        state = SWITCH_OFF_PROCESS;
+        state = NO_OPERATION;
     }
 }
 
 void checkTemperature()
 {
     temp = dht.readTemperature();
+    if (isnan(temp))
+    {
+        error("No temperature sensor data available");
+    }
 }
 
 void setHeater()
@@ -238,10 +255,11 @@ void setHeater()
             switchOn();
             state = SWITCH_ON_PROCESS;
         }
+        lastTime = millis();
         break;
 
     case SWITCH_ON_PROCESS:
-        if (temp >= actualSettings.onTemp + 1)
+        if (temp >= actualSettings.onTemp + actualSettings.switchOnDeltaT)
         {
             state = ON;
         }
@@ -249,52 +267,63 @@ void setHeater()
         {
             if (actualSettings.retryCount >= retryCountOn)
             {
-                state = ERROR_STATE;
+                error("Heater has not switched On");
             }
             else
             {
                 state = OFF;
                 retryCountOn++;
             }
-            lastTime = millis();
         }
         break;
 
     case ON:
         retryCountOn = 0;
-        if (temp > actualSettings.offTemp)
+        if ((temp > actualSettings.offTemp) || (millis() - lastTime >= actualSettings.maxOnTime))
         {
             switchOff();
             state = SWITCH_OFF_PROCESS;
+            lastTime = millis();
         }
         break;
 
     case SWITCH_OFF_PROCESS:
-        if (temp <= actualSettings.offTemp - 1)
+        if (temp <= actualSettings.offTemp - actualSettings.switchOffDeltaT)
         {
-            state = OFF;
+            state = PAUSE;
+            lastTime = millis();
         }
         else if (millis() - lastTime >= actualSettings.switchOffTime)
         {
             if (actualSettings.retryCount >= retryCountOff)
             {
-                state = ERROR_STATE;
+                error("Heater has not switched Off");
             }
             else
             {
-                state = ON;
+                switchOff();
                 retryCountOff++;
             }
             lastTime = millis();
         }
         break;
-    
+
+    case PAUSE:
+        if (millis() - lastTime >= actualSettings.minTimeDelay)
+        {
+            state = OFF;
+        }
+        break;
+
+    case NO_OPERATION:
+        /* fall through */
     case ERROR_STATE:
         /* fall through */
     default:
-        switchOff();
-        Serial.println("Error State - please Reset!");
-        state = ERROR_STATE;
+        if (heaterOn)
+        {
+            switchOff();
+        }
         break;
     }
 }
@@ -307,6 +336,7 @@ void switchOn()
         delay(100);
     }
     digitalWrite(LED_PIN, 1);
+    heaterOn = HIGH;
     
 }
 
@@ -318,6 +348,7 @@ void switchOff()
         delay(100);
     }
     digitalWrite(LED_PIN, 0);
+    heaterOn = LOW;
 }
 
 void fullPower()
@@ -333,7 +364,7 @@ void minimalPower()
 {
     for (int i = 0; i < 15; i++)
     {
-        transmitter.send(REMOTE_Minus);
+        transmitter.send(REMOTE_MINUS);
         delay(100);
     }
 }
@@ -362,6 +393,15 @@ void serialReport()
         Serial.print(temp);
         Serial.println(" °C");
 
+        Serial.print("Error: ");
+        Serial.println(errorString);
+
         lastReport = millis();
     }
+}
+
+void error(String newErrorString)
+{
+    state = ERROR_STATE;
+    errorString == newErrorString;
 }

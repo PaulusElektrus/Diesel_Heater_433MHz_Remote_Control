@@ -3,6 +3,11 @@
 This project is based on [ChilliChump`s Project](https://github.com/ChilliChump/Diesel-Heater-433mhz-Remote-Control). 
 
 Its goal is to control a diesel heater to be a frost guard.
+
+The states are as follows:
+
+![States](./doc/States.png)
+
 It is done with an Arduino, DHT22 (temperature sensor) and a 433MHz Transmitter.
 We sniff and use the protocoll of the original remote control of the heater.
 
@@ -15,6 +20,7 @@ We sniff and use the protocoll of the original remote control of the heater.
 - [X] Design Circuit Board 
 - [X] Build Circuit Board
 - [ ] Final Tests
+- [ ] Integration
 
 ## Basic 433Mhz Send & Receive Test
 

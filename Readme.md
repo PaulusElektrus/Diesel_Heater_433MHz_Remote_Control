@@ -11,7 +11,7 @@ We sniff and use the protocoll of the original remote control of the heater.
 - [X] Basic 433MHz Send & Receive Test
 - [X] Sniff Remote Control Codes
 - [X] DHT22 integration & test
-- [ ] Programming
+- [X] Programming
 - [X] Design Circuit Board 
 - [X] Build Circuit Board
 - [ ] Final Tests
@@ -88,4 +88,6 @@ You can install the [DHT sensor library](https://docs.arduino.cc/libraries/dht-s
 
 ## Schematic
 
-![Schematic](./Schematic.png)
+![Schematic](./doc/Schematic.png)
+
+![Project](./doc/Project.jpg)

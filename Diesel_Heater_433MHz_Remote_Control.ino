@@ -17,21 +17,17 @@
 /* User Settings */
 #define FROST_ON_TEMP               0   /* °C */
 #define FROST_OFF_TEMP              10  /* °C */
-#define FROST_MIN_TIME_DELAY        30  /* Minutes */
+#define FROST_PAUSE_TIME            30  /* Minutes */
 #define FROST_SWITCH_ON_TIME        5   /* Minutes */
-#define FROST_SWITCH_ON_DELTA_T     5   /* °C */
-#define FROST_SWITCH_OFF_TIME       5   /* Minutes */
-#define FROST_SWITCH_OFF_DELTA_T    5   /* °C */
+#define FROST_SWITCH_ON_DELTA_T     2   /* °C */
 #define FROST_MAX_ON_TIME           30  /* Minutes */
 #define FROST_RETRY_COUNT           0   /* times */
 
 #define HOME_ON_TEMP                15  /* °C */
 #define HOME_OFF_TEMP               25  /* °C */
-#define HOME_MIN_TIME_DELAY         30  /* Minutes */
+#define HOME_PAUSE_TIME             30  /* Minutes */
 #define HOME_SWITCH_ON_TIME         5   /* Minutes */
-#define HOME_SWITCH_ON_DELTA_T      5   /* °C */
-#define HOME_SWITCH_OFF_TIME        5   /* Minutes */
-#define HOME_SWITCH_OFF_DELTA_T     5   /* °C */
+#define HOME_SWITCH_ON_DELTA_T      2   /* °C */
 #define HOME_MAX_ON_TIME            30  /* Minutes */
 #define HOME_RETRY_COUNT            0   /* times */
 
@@ -60,8 +56,17 @@ enum heaterStates
     PAUSE,
     NO_OPERATION,
     ERROR_STATE,
-    SWITCH_OFF_PROCESS = 10,
-    SWITCH_ON_PROCESS,
+    SWITCH_ON_PROCESS = 10,
+};
+
+const char* heaterStatesStrings[6] = 
+{
+    "Off",
+    "On",
+    "Pause",
+    "No Operation",
+    "Error",
+    "Switch On Process"
 };
 
 struct settings
@@ -71,17 +76,15 @@ struct settings
     unsigned long   minTimeDelay;
     unsigned long   switchOnTime;
     int             switchOnDeltaT;
-    unsigned long   switchOffTime;
-    int             switchOffDeltaT;
     unsigned long   maxOnTime;
     unsigned int    retryCount;
 };
 
-
 /* Global Variables */
 operatingModes  mode            = OFF_MODE;
 heaterStates    state           = OFF;
-bool            heaterOn        = LOW;   
+bool            heaterOn        = false;
+bool            debugMode       = false;   
 float           temp            = NAN;
 unsigned long   time            = millis();
 String          serialInput     = "";
@@ -113,27 +116,23 @@ void setup()
 
     frostGuardSettings.onTemp           = FROST_ON_TEMP;
     frostGuardSettings.offTemp          = FROST_OFF_TEMP;
-    frostGuardSettings.minTimeDelay     = FROST_MIN_TIME_DELAY * MIN_TO_MSEC;
+    frostGuardSettings.minTimeDelay     = FROST_PAUSE_TIME * MIN_TO_MSEC;
     frostGuardSettings.switchOnTime     = FROST_SWITCH_ON_TIME * MIN_TO_MSEC;
     frostGuardSettings.switchOnDeltaT   = FROST_SWITCH_ON_DELTA_T;
-    frostGuardSettings.switchOffTime    = FROST_SWITCH_OFF_TIME * MIN_TO_MSEC;
-    frostGuardSettings.switchOffDeltaT  = FROST_SWITCH_OFF_DELTA_T;
     frostGuardSettings.maxOnTime        = FROST_MAX_ON_TIME * MIN_TO_MSEC;
     frostGuardSettings.retryCount       = FROST_RETRY_COUNT;
 
     atHomeSettings.onTemp               = HOME_ON_TEMP;
     atHomeSettings.offTemp              = HOME_OFF_TEMP;
-    atHomeSettings.minTimeDelay         = HOME_MIN_TIME_DELAY * MIN_TO_MSEC;
+    atHomeSettings.minTimeDelay         = HOME_PAUSE_TIME * MIN_TO_MSEC;
     atHomeSettings.switchOnTime         = HOME_SWITCH_ON_TIME * MIN_TO_MSEC;
     atHomeSettings.switchOnDeltaT       = HOME_SWITCH_ON_DELTA_T;
-    atHomeSettings.switchOffTime        = HOME_SWITCH_OFF_TIME * MIN_TO_MSEC;
-    atHomeSettings.switchOffDeltaT      = HOME_SWITCH_OFF_DELTA_T;
     atHomeSettings.maxOnTime            = HOME_MAX_ON_TIME * MIN_TO_MSEC;
     atHomeSettings.retryCount           = HOME_RETRY_COUNT;
 
     checkOperatingMode();
 
-    Serial.println("### Device Report ###\n");
+    Serial.println("### Device Report ###");
 }
 
 void loop()
@@ -143,7 +142,6 @@ void loop()
     checkTemperature();
     setHeater();
     serialReport();
-    delay(1000);
 }
 
 void checkAdminMode()
@@ -180,7 +178,7 @@ void adminMode(String userInput)
     }
 
     Serial.println("\n### Admin Mode ###\n");
-    digitalWrite(LED_BUILTIN, HIGH);
+    Serial.println("1) Switch On\n2) Switch Off\n3) Set Debug Temperature");
 
     while (adminModeOn) 
     {
@@ -198,6 +196,12 @@ void adminMode(String userInput)
             case 2:
                 switchOff();
                 break;
+            case 3:
+                setDebugTemperature();
+                break;
+            case 4:
+                debugMode = false;
+                break;
             default:
                 adminModeOn = 0;
                 Serial.println("\n### Closed Admin Mode ###\n");
@@ -206,6 +210,38 @@ void adminMode(String userInput)
 
         }
     }
+}
+
+void setDebugTemperature()
+{
+    char buffer[4];
+    float debugTemp;
+
+    Serial.println("Set temperature for debug tests in format: (+/-XX)");
+
+    while (Serial.available() < 3)
+    {
+        /* Wait */
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        buffer[i] = Serial.read();
+    }
+
+    buffer[3] = '\0';
+
+    if ((buffer[0] == '-' || buffer[0] == '+') && isdigit(buffer[1]) && isdigit(buffer[2]))
+    {
+        debugTemp = atof(buffer);
+        Serial.print("Debug Temperature set to: ");
+        Serial.println(debugTemp);
+        temp = debugTemp;
+        debugMode = true;
+        return;
+    }
+
+    Serial.println("Please try again...");
+
 }
 
 void checkOperatingMode()
@@ -233,11 +269,16 @@ void checkOperatingMode()
 
 void checkTemperature()
 {
-    temp = dht.readTemperature();
-    if (isnan(temp))
+    if (false == debugMode)
     {
-        error("No temperature sensor data available");
+        temp = dht.readTemperature();
+        if (isnan(temp))
+        {
+            error("No temperature sensor data available");
+        }
     }
+    /* To make sure DHT is ready at next readout add delay */
+    delay(200);
 }
 
 void setHeater()
@@ -282,28 +323,7 @@ void setHeater()
         if ((temp > actualSettings.offTemp) || (millis() - lastTime >= actualSettings.maxOnTime))
         {
             switchOff();
-            state = SWITCH_OFF_PROCESS;
-            lastTime = millis();
-        }
-        break;
-
-    case SWITCH_OFF_PROCESS:
-        if (temp <= actualSettings.offTemp - actualSettings.switchOffDeltaT)
-        {
             state = PAUSE;
-            lastTime = millis();
-        }
-        else if (millis() - lastTime >= actualSettings.switchOffTime)
-        {
-            if (actualSettings.retryCount >= retryCountOff)
-            {
-                error("Heater has not switched Off");
-            }
-            else
-            {
-                switchOff();
-                retryCountOff++;
-            }
             lastTime = millis();
         }
         break;
@@ -375,7 +395,7 @@ void serialReport()
 
     if (millis() - lastReport >= REPORT_TIME)
     {
-        Serial.print("Operating Mode: ");
+        Serial.print("\nOperating Mode: ");
         if (FROST_GUARD_MODE == mode)
         {
             Serial.println("Frost Guard Mode");
@@ -386,15 +406,37 @@ void serialReport()
         }
         else
         {
-            Serial.println("Off");
+            Serial.println("Off Mode");
         }
         
         Serial.print("Temperature: ");
         Serial.print(temp);
         Serial.println(" °C");
 
-        Serial.print("Error: ");
-        Serial.println(errorString);
+        Serial.print("Heater is: ");
+        if (true == heaterOn)
+        {
+            Serial.println("On");
+        }
+        else
+        {
+            Serial.println("Off");
+        }
+
+        Serial.print("Device State: ");
+        Serial.println(heaterStatesStrings[state]);
+
+        if (true == debugMode)
+        {
+            Serial.println("### Debug Mode enabled ###");
+        }
+        
+
+        if (ERROR_STATE == state)
+        {
+            Serial.print("\nError Occured: ");
+            Serial.println(errorString);
+        }
 
         lastReport = millis();
     }
@@ -404,4 +446,5 @@ void error(String newErrorString)
 {
     state = ERROR_STATE;
     errorString == newErrorString;
+    digitalWrite(LED_BUILTIN, HIGH);
 }

@@ -11,6 +11,8 @@ The states are as follows:
 It is done with an Arduino, DHT22 (temperature sensor) and a 433MHz Transmitter.
 We sniff and use the protocoll of the original remote control of the heater.
 
+I use the very nice [Arduino Extension for VSCode](https://github.com/microsoft/vscode-arduino), sadly it is deprecated...
+
 ## Projectplan / To-do:
 
 - [X] Basic 433MHz Send & Receive Test
@@ -19,7 +21,7 @@ We sniff and use the protocoll of the original remote control of the heater.
 - [X] Programming
 - [X] Design Circuit Board 
 - [X] Build Circuit Board
-- [ ] Final Tests
+- [X] Final Tests
 - [ ] Integration
 
 ## Basic 433Mhz Send & Receive Test
@@ -45,8 +47,6 @@ PulseLength: 257 microseconds
 
 Protocol: 1
 
-Raw data: 8016,724,276,236,776,724,276,236,776,236,772,728,272,724,280,236,772,724,280,232,776,236,776,232,776,720,280,724,284,224,780,720,276,232,768,240,772,240,772,724,276,236,772,240,776,232,776,724,276,724,276,236,776,728,272,728,276,232,776,236,776,236,772,236,768,
-
 #### Off:
 Decimal: 2794259720 (32Bit) 
 
@@ -57,8 +57,6 @@ Tri-State: not applicable
 PulseLength: 257 microseconds 
 
 Protocol: 1
-
-Raw data: 8004,724,272,244,768,728,268,240,772,240,768,728,272,728,268,244,768,724,276,236,772,236,772,236,772,728,272,724,276,236,772,724,276,236,776,232,772,240,768,240,772,236,772,724,276,236,772,724,276,240,768,236,772,236,768,240,772,724,272,244,768,240,768,240,764,
 
 #### +:
 Decimal: 2794260720 (32Bit) 
@@ -71,8 +69,6 @@ PulseLength: 257 microseconds
 
 Protocol: 1
 
-Raw data: 8008,720,284,228,780,716,284,228,780,228,780,716,284,716,284,224,784,716,284,228,780,228,780,224,788,712,284,716,288,220,784,716,280,232,776,232,776,228,780,236,772,724,280,228,780,228,780,228,780,720,280,720,280,720,280,716,284,228,780,232,780,228,776,232,776,
-
 #### -:
 Decimal: 2794259080 (32Bit) 
 
@@ -84,8 +80,6 @@ PulseLength: 256 microseconds
 
 Protocol: 1
 
-Raw data: 8008,716,284,232,772,728,276,228,780,232,780,716,280,720,280,224,784,716,280,228,784,220,784,228,784,716,284,720,280,224,784,716,280,228,780,228,780,236,776,224,780,232,780,224,784,712,284,232,780,716,280,232,780,232,772,236,776,720,280,228,780,228,780,228,780,
-
 ## DHT22 Test
 
 The DHT22 can be tested with the [Unified Sensor Example](https://github.com/adafruit/DHT-sensor-library/tree/master/examples/DHT_Unified_Sensor). 
@@ -96,4 +90,32 @@ You can install the [DHT sensor library](https://docs.arduino.cc/libraries/dht-s
 
 ![Schematic](./doc/Schematic.png)
 
+## Built Project
+
 ![Project](./doc/Project.jpg)
+
+## Serial Interface
+
+![serialInterface](./doc/serialInterface.png)
+
+### Admin Mode
+
+Connect to the Microcontroller via serial Inferface:
+
+- Baudrate: 115200
+- No line endings!
+
+Then enter "Admin" and send as plain UTF-8 characters.
+
+You can now do the following:
+
+1) Switch On
+2) Switch Off
+3) Set Debug Temperature
+4) Disable Debug
+5) Trigger Error
+6) Print actual Settings
+7) Reset State to Off
+8) Trigger serial Report
+
+Every other key ends Admin Mode. You can reenter it by typing "Admin" again.

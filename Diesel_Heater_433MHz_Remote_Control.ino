@@ -1,6 +1,6 @@
 /* Diesel Heater 433 MHz Remote Control */
 
-#define VERSION             "0.0.1"             
+#define VERSION             "1.0.0 - PaulusElektrus"             
 
 /* Temperature Sensor Library */
 #include <DHT.h>
@@ -15,24 +15,25 @@
 #define SWITCH_AT_HOME      9
 
 /* User Settings */
-#define FROST_ON_TEMP               0   /* °C */
-#define FROST_OFF_TEMP              10  /* °C */
-#define FROST_PAUSE_TIME            30  /* Minutes */
-#define FROST_SWITCH_ON_TIME        5   /* Minutes */
-#define FROST_SWITCH_ON_DELTA_T     2   /* °C */
-#define FROST_MAX_ON_TIME           30  /* Minutes */
-#define FROST_RETRY_COUNT           0   /* times */
+#define FROST_ON_TEMP               0.0     /* °C */
+#define FROST_OFF_TEMP              10.0    /* °C */
+#define FROST_PAUSE_TIME            30      /* Minutes */
+#define FROST_SWITCH_ON_TIME        10      /* Minutes */
+#define FROST_SWITCH_ON_DELTA_T     3.0     /* °C */
+#define FROST_MAX_ON_TIME           30      /* Minutes */
+#define FROST_RETRY_COUNT           1       /* times */
 
-#define HOME_ON_TEMP                15  /* °C */
-#define HOME_OFF_TEMP               25  /* °C */
-#define HOME_PAUSE_TIME             30  /* Minutes */
-#define HOME_SWITCH_ON_TIME         5   /* Minutes */
-#define HOME_SWITCH_ON_DELTA_T      2   /* °C */
-#define HOME_MAX_ON_TIME            30  /* Minutes */
-#define HOME_RETRY_COUNT            0   /* times */
+#define HOME_ON_TEMP                15.0    /* °C */
+#define HOME_OFF_TEMP               25.0    /* °C */
+#define HOME_PAUSE_TIME             30      /* Minutes */
+#define HOME_SWITCH_ON_TIME         10      /* Minutes */
+#define HOME_SWITCH_ON_DELTA_T      3.0     /* °C */
+#define HOME_MAX_ON_TIME            30      /* Minutes */
+#define HOME_RETRY_COUNT            0       /* times */
 
 #define MIN_TO_MSEC                 60000
 #define REPORT_TIME                 5000
+#define TEMP_CHECK_TIME             1000
 
 /* Remote Codes */
 #define REMOTE_ON           "10100110100011010001000110110000"
@@ -56,7 +57,7 @@ enum heaterStates
     PAUSE,
     NO_OPERATION,
     ERROR_STATE,
-    SWITCH_ON_PROCESS = 10,
+    SWITCH_ON_PROCESS,
 };
 
 const char* heaterStatesStrings[6] = 
@@ -71,11 +72,11 @@ const char* heaterStatesStrings[6] =
 
 struct settings
 {
-    int             onTemp;
-    int             offTemp;
+    float           onTemp;
+    float           offTemp;
     unsigned long   minTimeDelay;
     unsigned long   switchOnTime;
-    int             switchOnDeltaT;
+    float           switchOnDeltaT;
     unsigned long   maxOnTime;
     unsigned int    retryCount;
 };
@@ -86,7 +87,6 @@ heaterStates    state           = OFF;
 bool            heaterOn        = false;
 bool            debugMode       = false;   
 float           temp            = NAN;
-unsigned long   time            = millis();
 String          serialInput     = "";
 String          errorString     = "No Errors";
 settings        frostGuardSettings;
@@ -102,7 +102,7 @@ void setup()
     Serial.begin(115200);
     Serial.print("\n\nDiesel Heater Control - Version: ");
     Serial.print(VERSION);
-    Serial.println("\n\n");
+    Serial.println("\n");
 
     pinMode(LED_PIN, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
@@ -131,8 +131,6 @@ void setup()
     atHomeSettings.retryCount           = HOME_RETRY_COUNT;
 
     checkOperatingMode();
-
-    Serial.println("### Device Report ###");
 }
 
 void loop()
@@ -177,8 +175,8 @@ void adminMode(String userInput)
         return;
     }
 
-    Serial.println("\n### Admin Mode ###\n");
-    Serial.println("1) Switch On\n2) Switch Off\n3) Set Debug Temperature");
+    Serial.println("\n### Admin Mode ###");
+    printAdminMenu();
 
     while (adminModeOn) 
     {
@@ -192,24 +190,47 @@ void adminMode(String userInput)
             {
             case 1:
                 switchOn();
+                Serial.println("Switched manually On");
                 break;
             case 2:
                 switchOff();
+                Serial.println("Switched manually Off");
                 break;
             case 3:
                 setDebugTemperature();
                 break;
             case 4:
                 debugMode = false;
+                Serial.println("Disabled Debug Mode");
+                break;
+            case 5:
+                error("Test Error");
+                Serial.println("Triggered Test Error");
+                break;
+            case 6:
+                printSettings();
+                break;
+            case 7:
+                state = OFF;
+                Serial.println("Reset state to Off");
+                break;
+            case 8:
+                serialReport();
+                Serial.println("Triggered serial Report function");
                 break;
             default:
                 adminModeOn = 0;
                 Serial.println("\n### Closed Admin Mode ###\n");
                 break;
             }
-
+            printAdminMenu();
         }
     }
+}
+
+void printAdminMenu()
+{
+    Serial.println("\n1) Switch On\n2) Switch Off\n3) Set Debug Temperature\n4) Disable Debug\n5) Trigger Error\n6) Print actual Settings\n7) Reset State to Off\n8) Trigger serial Report\n\nEvery other key ends Admin Mode.");
 }
 
 void setDebugTemperature()
@@ -241,13 +262,31 @@ void setDebugTemperature()
     }
 
     Serial.println("Please try again...");
+}
 
+void printSettings()
+{
+    Serial.println("\n### Settings ###\n");
+    Serial.print("- On Temp: ");
+    Serial.println(actualSettings.onTemp);
+    Serial.print("- Off Temp: ");
+    Serial.println(actualSettings.offTemp);
+    Serial.print("- Min Time Delay: ");
+    Serial.println(actualSettings.minTimeDelay);
+    Serial.print("- Switch On Time: ");
+    Serial.println(actualSettings.switchOnTime);
+    Serial.print("- Switch On Delta T: ");
+    Serial.println(actualSettings.switchOnDeltaT);
+    Serial.print("- Max On Time: ");
+    Serial.println(actualSettings.maxOnTime);
+    Serial.print("- Retry Count: ");
+    Serial.println(actualSettings.retryCount);
 }
 
 void checkOperatingMode()
 {
-    /* No operating mode changes during Switch On or Off state */
-    if (state < 10)
+    /* No operating mode changes during Switch On */
+    if (state < SWITCH_ON_PROCESS)
     {
         if (!digitalRead(SWITCH_FROST_GUARD))
         {
@@ -269,16 +308,19 @@ void checkOperatingMode()
 
 void checkTemperature()
 {
-    if (false == debugMode)
+    static unsigned long lastReport = millis();
+
+    if (millis() - lastReport >= TEMP_CHECK_TIME)
     {
-        temp = dht.readTemperature();
-        if (isnan(temp))
+        if (false == debugMode)
         {
-            error("No temperature sensor data available");
+            temp = dht.readTemperature();
+            if (isnan(temp))
+            {
+                error("No temperature sensor data available");
+            }
         }
     }
-    /* To make sure DHT is ready at next readout add delay */
-    delay(200);
 }
 
 void setHeater()
@@ -291,7 +333,7 @@ void setHeater()
     {
     case OFF:
         retryCountOff = 0;
-        if (temp < actualSettings.onTemp)
+        if (temp <= actualSettings.onTemp)
         {
             switchOn();
             state = SWITCH_ON_PROCESS;
@@ -320,7 +362,7 @@ void setHeater()
 
     case ON:
         retryCountOn = 0;
-        if ((temp > actualSettings.offTemp) || (millis() - lastTime >= actualSettings.maxOnTime))
+        if ((temp >= actualSettings.offTemp) || (millis() - lastTime >= actualSettings.maxOnTime))
         {
             switchOff();
             state = PAUSE;
@@ -426,16 +468,15 @@ void serialReport()
         Serial.print("Device State: ");
         Serial.println(heaterStatesStrings[state]);
 
-        if (true == debugMode)
-        {
-            Serial.println("### Debug Mode enabled ###");
-        }
-        
-
         if (ERROR_STATE == state)
         {
-            Serial.print("\nError Occured: ");
+            Serial.print("Error Occured: ");
             Serial.println(errorString);
+        }
+
+        if (true == debugMode)
+        {
+            Serial.println("\n### Debug Mode enabled ###");
         }
 
         lastReport = millis();
@@ -445,6 +486,6 @@ void serialReport()
 void error(String newErrorString)
 {
     state = ERROR_STATE;
-    errorString == newErrorString;
+    errorString = newErrorString;
     digitalWrite(LED_BUILTIN, HIGH);
 }

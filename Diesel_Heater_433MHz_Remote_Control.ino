@@ -331,6 +331,7 @@ void checkTemperature()
 void setHeater()
 {
     static unsigned long    lastTime        = millis();
+    static float            lastTemp        = temp;
     static unsigned int     retryCountOn    = 0;
     static unsigned int     retryCountOff   = 0;
 
@@ -341,13 +342,14 @@ void setHeater()
         if (temp <= actualSettings.onTemp)
         {
             switchOn();
+            lastTemp = temp;
             state = SWITCH_ON_PROCESS;
         }
         lastTime = millis();
         break;
 
     case SWITCH_ON_PROCESS:
-        if (temp >= actualSettings.onTemp + actualSettings.switchOnDeltaT)
+        if (temp >= lastTemp + actualSettings.switchOnDeltaT)
         {
             state = ON;
         }

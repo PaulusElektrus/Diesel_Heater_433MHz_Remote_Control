@@ -22,7 +22,7 @@ I use the very nice [Arduino Extension for VSCode](https://github.com/microsoft/
 - [X] Design Circuit Board 
 - [X] Build Circuit Board
 - [X] Final Tests
-- [ ] Integration
+- [X] Integration
 
 ## Basic 433Mhz Send & Receive Test
 

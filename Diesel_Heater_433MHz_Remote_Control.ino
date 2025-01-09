@@ -1,6 +1,6 @@
 /* Diesel Heater 433 MHz Remote Control */
 
-#define VERSION             "1.0.0 - PaulusElektrus"             
+#define VERSION             "2.0.1 - PaulusElektrus"             
 
 /* Temperature Sensor Library */
 #include <DHT.h>

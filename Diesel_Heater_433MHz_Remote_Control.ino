@@ -15,13 +15,14 @@
 #define SWITCH_AT_HOME      9
 
 /* User Settings */
-#define FROST_ON_TEMP               0.0     /* °C */
+#define FROST_ON_TEMP               3.0     /* °C */
 #define FROST_OFF_TEMP              10.0    /* °C */
 #define FROST_PAUSE_TIME            30      /* Minutes */
 #define FROST_SWITCH_ON_TIME        10      /* Minutes */
 #define FROST_SWITCH_ON_DELTA_T     3.0     /* °C */
 #define FROST_MAX_ON_TIME           30      /* Minutes */
 #define FROST_RETRY_COUNT           1       /* times */
+#define FROST_TIMES_MINUS_KNOB      5       /* times */
 
 #define HOME_ON_TEMP                15.0    /* °C */
 #define HOME_OFF_TEMP               25.0    /* °C */
@@ -30,10 +31,14 @@
 #define HOME_SWITCH_ON_DELTA_T      3.0     /* °C */
 #define HOME_MAX_ON_TIME            30      /* Minutes */
 #define HOME_RETRY_COUNT            0       /* times */
+#define HOME_TIMES_MINUS_KNOB       5       /* times */
 
+/* Conversion factor from msec to sec */
 #define MIN_TO_MSEC                 60000
-#define REPORT_TIME                 5000
-#define TEMP_CHECK_TIME             1000
+/* Interval to send serial report */
+#define REPORT_TIME                 5000    /* msec */
+/* Check temperature interval */
+#define TEMP_CHECK_TIME             1000    /* msec */
 
 /* Remote Codes */
 #define REMOTE_ON           "10100110100011010001000110110000"
@@ -79,6 +84,7 @@ struct settings
     float           switchOnDeltaT;
     unsigned long   maxOnTime;
     unsigned int    retryCount;
+    unsigned int    timesMinusKnob;
 };
 
 /* Global Variables */
@@ -121,6 +127,7 @@ void setup()
     frostGuardSettings.switchOnDeltaT   = FROST_SWITCH_ON_DELTA_T;
     frostGuardSettings.maxOnTime        = FROST_MAX_ON_TIME * MIN_TO_MSEC;
     frostGuardSettings.retryCount       = FROST_RETRY_COUNT;
+    frostGuardSettings.timesMinusKnob   = FROST_TIMES_MINUS_KNOB;
 
     atHomeSettings.onTemp               = HOME_ON_TEMP;
     atHomeSettings.offTemp              = HOME_OFF_TEMP;
@@ -129,6 +136,7 @@ void setup()
     atHomeSettings.switchOnDeltaT       = HOME_SWITCH_ON_DELTA_T;
     atHomeSettings.maxOnTime            = HOME_MAX_ON_TIME * MIN_TO_MSEC;
     atHomeSettings.retryCount           = HOME_RETRY_COUNT;
+    atHomeSettings.timesMinusKnob       = HOME_TIMES_MINUS_KNOB;
 
     checkOperatingMode();
 }
@@ -299,11 +307,6 @@ void checkOperatingMode()
             actualSettings = atHomeSettings;
         }
     }
-    if (digitalRead(SWITCH_FROST_GUARD) && digitalRead(SWITCH_AT_HOME))
-    {
-        mode = OFF_MODE;
-        state = NO_OPERATION;
-    }
 }
 
 void checkTemperature()
@@ -392,24 +395,25 @@ void setHeater()
 
 void switchOn()
 {
-    for (int i = 0; i < 4; i++)
+    digitalWrite(LED_PIN, 1);
+    for (int i = 0; i < 1; i++)
     {
         transmitter.send(REMOTE_ON);
         delay(100);
     }
-    digitalWrite(LED_PIN, 1);
+    minimalPower();
     heaterOn = HIGH;
     
 }
 
 void switchOff()
 {
-    for (int i = 0; i < 4; i++)
+    digitalWrite(LED_PIN, 0);
+    for (int i = 0; i < 5; i++)
     {
         transmitter.send(REMOTE_OFF);
         delay(100);
     }
-    digitalWrite(LED_PIN, 0);
     heaterOn = LOW;
 }
 
@@ -424,7 +428,7 @@ void fullPower()
 
 void minimalPower()
 {
-    for (int i = 0; i < 15; i++)
+    for (int i = 0; i < actualSettings.timesMinusKnob; i++)
     {
         transmitter.send(REMOTE_MINUS);
         delay(100);

@@ -289,6 +289,8 @@ void printSettings()
     Serial.println(actualSettings.maxOnTime);
     Serial.print("- Retry Count: ");
     Serial.println(actualSettings.retryCount);
+    Serial.print("- Times Minus Knob: ");
+    Serial.println(actualSettings.timesMinusKnob);
 }
 
 void checkOperatingMode()
